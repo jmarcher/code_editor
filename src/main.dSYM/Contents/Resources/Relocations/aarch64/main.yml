@@ -1,0 +1,5 @@
+---
+triple:          'arm64-apple-darwin'
+binary-path:     '/Users/joaquinmarcher/Code/C/gui/src/main'
+relocations:     []
+...
