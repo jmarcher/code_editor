@@ -74,13 +74,22 @@ void Editor::keyPressEvent(QKeyEvent *event)
 {
     if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
         handleIndentation(event);
+    } else if (completer->handleKeyPress(event)) {
+        // The completer handled the key press
+        return;
     } else {
         QPlainTextEdit::keyPressEvent(event);
         
         // Update completions after key press
         QTextCursor cursor = textCursor();
         QString text = toPlainText();
-        completer->updateCompletions(text, cursor.position());
+        
+        // Special handling for $ symbol
+        if (event->text() == "$") {
+            completer->updateCompletions(text, cursor.position());
+        } else {
+            completer->updateCompletions(text, cursor.position());
+        }
     }
 }
 

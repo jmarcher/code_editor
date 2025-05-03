@@ -7,6 +7,8 @@
 #include <QScrollBar>
 #include <QApplication>
 #include <QScreen>
+#include <QKeyEvent>
+#include <QRegularExpression>
 
 CodeCompleter::CodeCompleter(Editor *editor) : QObject(editor), editor(editor)
 {
@@ -155,15 +157,105 @@ bool CodeCompleter::isInLaravelContext(const QString &text, int cursorPosition)
            beforeCursor.contains("function");
 }
 
+void CodeCompleter::updateVariableCompletions(const QString &text, int cursorPosition)
+{
+    variableCompletions.clear();
+    
+    // Extract variables from the current scope
+    QRegularExpression varRegex("\\$([a-zA-Z_][a-zA-Z0-9_]*)");
+    QRegularExpressionMatchIterator it = varRegex.globalMatch(text.left(cursorPosition));
+    
+    while (it.hasNext()) {
+        QRegularExpressionMatch match = it.next();
+        QString varName = match.captured(1);
+        // Only add variables that are declared before the cursor
+        if (match.capturedStart() < cursorPosition) {
+            variableCompletions[varName] = "$" + varName;
+        }
+    }
+}
+
+QString CodeCompleter::getCompletionText(const QString &completion)
+{
+    if (laravelKeywords.contains(completion)) {
+        return laravelKeywords[completion];
+    } else if (laravelMethods.contains(completion)) {
+        return completion + "()";
+    } else if (laravelClasses.contains(completion)) {
+        return completion;
+    } else if (variableCompletions.contains(completion)) {
+        return variableCompletions[completion];
+    }
+    return completion;
+}
+
+void CodeCompleter::insertCompletion(const QString &completion)
+{
+    QTextCursor cursor = editor->textCursor();
+    
+    // Get the completion text
+    QString completionText = getCompletionText(completion);
+    
+    // If it's a method, don't add the closing parenthesis if it's already there
+    if (completionText.endsWith("()")) {
+        int pos = cursor.position();
+        QString text = editor->toPlainText();
+        if (pos < text.length() && text.at(pos) == '(') {
+            completionText.chop(1);
+        }
+    }
+    
+    // Insert the completion
+    cursor.insertText(completionText);
+    editor->setTextCursor(cursor);
+}
+
+bool CodeCompleter::handleKeyPress(QKeyEvent *event)
+{
+    if (!popup->isVisible()) {
+        return false;
+    }
+    
+    if (event->key() == Qt::Key_Return || event->key() == Qt::Key_Enter) {
+        QString completion = popup->currentIndex().data().toString();
+        if (!completion.isEmpty()) {
+            insertCompletion(completion);
+            hideCompletions();
+            return true;
+        }
+    }
+    
+    return false;
+}
+
 void CodeCompleter::updateCompletions(const QString &text, int cursorPosition)
 {
-    if (!isInLaravelContext(text, cursorPosition)) {
+    QString currentWord = getCurrentWord(text, cursorPosition);
+    
+    // Check if we're looking for variables (after $)
+    if (currentWord == "$" || currentWord.startsWith("$")) {
+        updateVariableCompletions(text, cursorPosition);
+        currentWord = currentWord.mid(1); // Remove the $ for matching
+        
+        // If we just typed $, show all variables
+        if (currentWord.isEmpty()) {
+            QStringList completions = variableCompletions.keys();
+            if (!completions.isEmpty()) {
+                completer->setModel(new QStringListModel(completions, completer));
+                completer->setCompletionPrefix("");
+                
+                QTextCursor cursor = editor->textCursor();
+                QRect rect = editor->cursorRect(cursor);
+                showCompletions(rect.bottomLeft());
+                return;
+            }
+        }
+    } else if (!isInLaravelContext(text, cursorPosition)) {
         hideCompletions();
         return;
     }
     
-    QString currentWord = getCurrentWord(text, cursorPosition);
-    if (currentWord.length() < 2) {
+    if (currentWord.length() < 2 && !currentWord.isEmpty()) {
         hideCompletions();
         return;
     }

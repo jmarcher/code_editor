@@ -8,6 +8,7 @@
 #include <QTextCursor>
 #include <QCompleter>
 #include <QAbstractItemView>
+#include <QRegularExpression>
 
 class Editor;
 
@@ -21,6 +22,7 @@ public:
     void updateCompletions(const QString &text, int cursorPosition);
     void showCompletions(const QPoint &pos);
     void hideCompletions();
+    bool handleKeyPress(QKeyEvent *event);
 
 private:
     Editor *editor;
@@ -30,6 +32,7 @@ private:
     QMap<QString, QString> laravelKeywords;
     QMap<QString, QString> laravelMethods;
     QMap<QString, QString> laravelClasses;
+    QMap<QString, QString> variableCompletions;
     
     void initializeLaravelKeywords();
     void initializeLaravelMethods();
@@ -37,6 +40,9 @@ private:
     QString getCurrentWord(const QString &text, int cursorPosition);
     QStringList getCompletions(const QString &word);
     bool isInLaravelContext(const QString &text, int cursorPosition);
+    void updateVariableCompletions(const QString &text, int cursorPosition);
+    void insertCompletion(const QString &completion);
+    QString getCompletionText(const QString &completion);
 };
 
 #endif // CODECOMPLETER_H 
